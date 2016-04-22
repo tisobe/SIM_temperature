@@ -6,7 +6,7 @@
 #                                                                                           #
 #               author: t. isobe (tisobe@cfa.harvard.edu)                                   #
 #                                                                                           #
-#               last update: Apr 07, 2016                                                   #
+#               last update: Mar 23, 2016                                                   #
 #                                                                                           #
 #############################################################################################
 
@@ -55,11 +55,11 @@ import mta_common_functions       as mcf        #---- contains other functions c
 #
 rtail  = int(10000 * random.random())       #---- put a romdom # tail so that it won't mix up with other scripts space
 zspace = '/tmp/zspace' + str(rtail)
-zspace2 = zspace + '_note'
 #
 #--- a couple of things needed
 #
 dare   = mcf.get_val('.dare',   dir = bindata_dir, lst=1)
+hakama = mcf.get_val('.hakama', dir = bindata_dir, lst=1)
 
 #-----------------------------------------------------------------------------------------------------------
 #-- run_sim_temp_script: run all scripts to update tsc_temps.txt data file                                --
@@ -93,6 +93,7 @@ def run_sim_temp_script(year, sdate, edate):
 #--- extract trace log files. if chk == 0, no files are extracted
 #
         chk = run_filter_script(start, stop)
+        chk = 1
 
         if chk == 0:
             continue
@@ -105,12 +106,11 @@ def run_sim_temp_script(year, sdate, edate):
 #
 #--- extract data
             try:
-                dpath = exc_dir + 'TL/'
-                if os.listdir(dpath) != []:
-                    cmd = 'cat ' + exc_dir +  'TL/PRIMARYSIM_*.tl.tmp |' + bin_dir + 'monitor_sim.pl'
-                    os.system(cmd)
-                    cmd = 'rm -rf ' + exc_dir + 'TL/*'
-                    os.system(cmd)
+                cmd = 'cat ' + exc_dir +  'TL/PRIMARYSIM_*.tl.tmp |' + bin_dir + 'monitor_sim.pl'
+                print cmd
+                os.system(cmd)
+                cmd = 'rm -rf ' + exc_dir + 'TL/*'
+                os.system(cmd)
             except:
                 pass
 #
@@ -119,27 +119,34 @@ def run_sim_temp_script(year, sdate, edate):
     clean_tsc_data()
 
 #-----------------------------------------------------------------------------------------------------------
-#-- start_stop_period: convert year and yday to the <yyy>:<ddd>:00:00:00 format                           --
+#-- start_stop_period: convert year and yday to the mm/dd/yy, 00:00:00 format                             --
 #-----------------------------------------------------------------------------------------------------------
 
 def start_stop_period(year, yday):
     """
-    convert year and yday to the <yyy>:<ddd>:00:00:00
+    convert year and yday to the mm/dd/yy, 00:00:00 format
     input:  year    --- year
             yday    --- yday
-    output: [start, stop]   --- in the format of <yyy>:<ddd>:00:00:00 
+    output: [start, stop]   --- in the format of mm/dd/yy, 00:00:00 
     """
-    lyday = str(yday)
-    if yday < 10:
-        lyday = '00' + lyday
-    elif yday < 100:
-        lyday = '0' + lyday
 
+    lyear = str(year)
+    syear = lyear[2] + lyear[3]
 
-    start = str(year) + ':' +  lyday
+    [mon, mday] = tcnv.changeYdateToMonDate(year, yday)
+
+    smon = str(mon)
+    if mon < 10:
+        smon = '0' + smon
+    sday = str(mday)
+    if mday < 10:
+        sday = '0' + sday
+
+    start = smon + '/' + sday + '/' +  syear
+
     stop  = start
-    start = start + ':00:00:00'
-    stop  = stop  + ':23:59:59'
+    start = start + ',00:00:00'
+    stop  = stop  + ',23:59:59'
 
     return [start, stop]
             
@@ -212,9 +219,7 @@ def get_dump_em_files(start, stop):
 #
 #--- get data from archive
 #
-    chk = run_arc5gl(start, stop)
-    if chk == False:
-        return []
+    run_arc4gl(start, stop)
 #
 #--- move the data to EM_Data directory and return the list of the data extracted
 #
@@ -238,12 +243,12 @@ def get_dump_em_files(start, stop):
     return  data
 
 #-----------------------------------------------------------------------------------------------------------
-#-- run_arc5gl: extract data from archive using arc5gl                                                    --
+#-- run_arc4gl: extract data from archive using arc4gl                                                    --
 #-----------------------------------------------------------------------------------------------------------
 
-def run_arc5gl(start, stop, operation='retrieve', dataset='flight', detector='telem', level='raw'):
+def run_arc4gl(start, stop, operation='retrieve', dataset='flight', detector='telem', level='raw'):
     """
-    extract data from archive using arc5gl
+    extract data from archive using arc4gl
     input:  start   --- starting time in the format of mm/dd/yy,hh/mm/ss. hh/mm/ss is optional
             stop    --- stoping time
             operation   --- operation command.  default = retrieve
@@ -253,7 +258,7 @@ def run_arc5gl(start, stop, operation='retrieve', dataset='flight', detector='te
     output: extracted data set
     """
 #
-#--- write arc5gl command
+#--- write arc4gl command
 #
     line = 'operation = '       + operation  + '\n'
     line = line + 'dataset = '  + dataset    + '\n'
@@ -267,28 +272,14 @@ def run_arc5gl(start, stop, operation='retrieve', dataset='flight', detector='te
     fo.write(line)
     fo.close()
 #
-#--- run arc5gl 
+#--- run arc4gl 
 #
-    cmd =  ' /proj/axaf/simul/bin/arc5gl -user ' + dare + ' -script ' + zspace + ' > ' + zspace2
-    os.system(cmd)
+    cmd1 = '/usr/bin/env PERL5LIB=""'
+    ####cmd2 = '  source /home/mta/bin/reset_param;'
+    cmd2 =  ' echo ' + hakama + '|arc4gl -U' + dare + ' -Sarcocc -i' + zspace
+    cmd  = cmd1 + cmd2
+    bash(cmd, env=ascdsenv)
     mcf.rm_file(zspace)
-
-    f   = open(zspace2, 'r')
-    data = [line.strip() for line in f.readlines()]
-    f.close()
-
-    chk = 0
-    for ent in data:
-        mc = re.search('Retrieved', ent)
-        if mc is not None:
-            continue
-        else:
-            chk += 1
-
-    if chk > 0:
-        return True
-    else:
-        return False
 
 #-----------------------------------------------------------------------------------------------------------
 #-- clean_tsc_data: order and removed duplicated entries                                                  --
