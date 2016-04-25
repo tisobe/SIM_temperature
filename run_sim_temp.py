@@ -6,7 +6,7 @@
 #                                                                                           #
 #               author: t. isobe (tisobe@cfa.harvard.edu)                                   #
 #                                                                                           #
-#               last update: Mar 23, 2016                                                   #
+#               last update: Apr 25, 2016                                                   #
 #                                                                                           #
 #############################################################################################
 
@@ -93,7 +93,6 @@ def run_sim_temp_script(year, sdate, edate):
 #--- extract trace log files. if chk == 0, no files are extracted
 #
         chk = run_filter_script(start, stop)
-        chk = 1
 
         if chk == 0:
             continue
